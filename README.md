@@ -45,7 +45,7 @@ todoapp/
 
 1. **Clone the repository:**
    ```bash
-   git clone <your-repo-url>
+   git clone https://github.com/mahadbashir1/Task-Manager-Pro.git
    cd todoapp
    ```
 
