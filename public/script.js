@@ -2,7 +2,6 @@ const API_URL = '/api/v1';
 
 document.addEventListener('DOMContentLoaded', () => {
     fetchTasks();
-    
     document.getElementById('task-form').addEventListener('submit', handleFormSubmit);
     document.getElementById('cancel-edit-btn').addEventListener('click', cancelEdit);
 });
@@ -13,6 +12,7 @@ let currentEditId = null;
 async function fetchTasks() {
     const container = document.getElementById('tasks-container');
     const loading = document.getElementById('loading');
+    const countBadge = document.getElementById('task-count');
     
     loading.classList.remove('hidden');
     container.innerHTML = '';
@@ -25,13 +25,20 @@ async function fetchTasks() {
         
         if (result.success && result.data.length > 0) {
             renderTasks(result.data);
+            countBadge.innerText = `${result.data.length} Task${result.data.length > 1 ? 's' : ''}`;
         } else {
-            container.innerHTML = '<p class="task-desc" style="grid-column: 1/-1; text-align: center; padding: 2rem;">No tasks found. Add one above!</p>';
+            countBadge.innerText = `0 Tasks`;
+            container.innerHTML = `
+                <div style="grid-column: 1/-1; text-align: center; padding: 4rem 1rem; color: var(--text-muted);">
+                    <i class="ph-light ph-folder-open" style="font-size: 4rem; margin-bottom: 1rem; opacity: 0.5;"></i>
+                    <p>It's empty here. Time to launch a new task!</p>
+                </div>
+            `;
         }
     } catch (error) {
         console.error('Error fetching tasks:', error);
         loading.classList.add('hidden');
-        showToast('Failed to load tasks', 'error');
+        showToast('Failed to load tasks. Verify backend.', 'error', 'ph-warning-circle');
     }
 }
 
@@ -40,47 +47,69 @@ function renderTasks(tasks) {
     container.innerHTML = '';
     
     // Sort tasks by latest first
-    tasks.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+    tasks.sort((a, b) => new Date(b.updatedAt || b.createdAt) - new Date(a.updatedAt || a.createdAt)).reverse();
     
-    tasks.forEach(task => {
-        const date = new Date(task.updatedAt || task.createdAt).toLocaleDateString();
+    tasks.forEach((task, index) => {
+        const date = new Date(task.updatedAt || task.createdAt).toLocaleDateString('en-US', {
+            month: 'short', day: 'numeric', year: 'numeric'
+        });
         
         const card = document.createElement('div');
-        card.className = 'task-card';
+        card.className = `task-card ${task.completed ? 'task-completed' : ''}`;
+        // Staggered animation delay
+        card.style.animationDelay = `${index * 0.05}s`;
+        
         card.innerHTML = `
-            <div class="${task.completed ? 'task-completed' : ''}">
+            <div>
                 <div class="task-header-row">
                     <h3 class="task-title">${escapeHTML(task.title)}</h3>
-                    <input type="checkbox" class="complete-checkbox" data-id="${task._id}" ${task.completed ? 'checked' : ''}>
+                    <div>
+                        <input type="checkbox" id="chk-${task._id}" class="custom-checkbox complete-checkbox" data-id="${task._id}" ${task.completed ? 'checked' : ''}>
+                        <label for="chk-${task._id}" class="checkbox-label">
+                            <i class="ph-bold ph-check"></i>
+                        </label>
+                    </div>
                 </div>
                 <p class="task-desc">${escapeHTML(task.description)}</p>
                 <div class="task-meta">
-                    <span>${date}</span>
+                    <i class="ph ph-clock"></i> ${date}
                 </div>
             </div>
             <div class="task-actions">
-                <button class="action-btn edit-btn" data-id="${task._id}">Edit</button>
-                <button class="action-btn delete-btn" data-id="${task._id}">Delete</button>
+                <button class="icon-btn edit" data-id="${task._id}">
+                    <i class="ph-bold ph-pencil-simple"></i> Edit
+                </button>
+                <button class="icon-btn delete" data-id="${task._id}">
+                    <i class="ph-bold ph-trash"></i> Delete
+                </button>
             </div>
         `;
         
         container.appendChild(card);
     });
     
-    document.querySelectorAll('.edit-btn').forEach(btn => {
+    bindEvents();
+}
+
+function bindEvents() {
+    document.querySelectorAll('.edit').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const id = e.target.getAttribute('data-id');
-            const task = tasks.find(t => t._id === id);
-            startEdit(task);
+            const id = e.currentTarget.getAttribute('data-id');
+            const taskTitle = e.currentTarget.closest('.task-card').querySelector('.task-title').innerText;
+            const taskDesc = e.currentTarget.closest('.task-card').querySelector('.task-desc').innerText;
+            startEdit({ _id: id, title: taskTitle, description: taskDesc });
         });
     });
 
-    document.querySelectorAll('.delete-btn').forEach(btn => {
+    document.querySelectorAll('.delete').forEach(btn => {
         btn.addEventListener('click', (e) => {
-            const id = e.target.getAttribute('data-id');
-            if(confirm('Are you sure you want to delete this task?')) {
-                deleteTask(id);
-            }
+            const id = e.currentTarget.getAttribute('data-id');
+            const card = e.currentTarget.closest('.task-card');
+            
+            // Add shrink animation and delete
+            card.style.transform = 'scale(0.8)';
+            card.style.opacity = '0';
+            setTimeout(() => deleteTask(id), 300);
         });
     });
 
@@ -99,6 +128,8 @@ async function handleFormSubmit(e) {
     const titleEle = document.getElementById('title');
     const descEle = document.getElementById('description');
     const btn = document.getElementById('submit-btn');
+    const btnText = btn.querySelector('span');
+    const btnIcon = btn.querySelector('i');
     
     const title = titleEle.value.trim();
     const description = descEle.value.trim();
@@ -106,41 +137,41 @@ async function handleFormSubmit(e) {
     if (!title || !description) return;
 
     if(title.length > 50 || description.length > 50) {
-        showToast("Title and Description must be max 50 characters", "error");
+        showToast("Title and Description must be max 50 characters", "error", "ph-warning-circle");
         return;
     }
 
     try {
         btn.disabled = true;
-        btn.textContent = isEditing ? 'Updating...' : 'Creating...';
+        btnText.innerText = isEditing ? 'Updating...' : 'Launching...';
+        btnIcon.className = 'ph-bold ph-spinner-gap spin';
         
         const endpoint = isEditing ? `/updateTodo/${currentEditId}` : '/createTodo';
         
         const response = await fetch(`${API_URL}${endpoint}`, {
-            method: 'POST', // Backend explicitly uses POST for both
-            headers: {
-                'Content-Type': 'application/json'
-            },
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ title, description })
         });
         
         const result = await response.json();
         
         if (response.ok && result.success) {
-            showToast(isEditing ? 'Task updated successfully' : 'Task created successfully', 'success');
+            showToast(isEditing ? 'Task updated!' : 'Task created successfully!', 'success', 'ph-check-circle');
             titleEle.value = '';
             descEle.value = '';
             if (isEditing) cancelEdit();
-            fetchTasks(); // Refresh list to get new IDs
+            fetchTasks(); 
         } else {
-            showToast(result.message || 'Error saving task', 'error');
+            showToast(result.message || 'Error saving task', 'error', 'ph-warning-circle');
         }
     } catch (error) {
         console.error('Error saving task:', error);
-        showToast('Network error, could not save task', 'error');
+        showToast('Network error, could not save task', 'error', 'ph-wifi-slash');
     } finally {
         btn.disabled = false;
-        btn.textContent = isEditing ? 'Update Task' : 'Create Task';
+        btnText.innerText = isEditing ? 'Update Task' : 'Create Task';
+        btnIcon.className = 'ph-bold ph-arrow-right';
     }
 }
 
@@ -148,14 +179,17 @@ function startEdit(task) {
     isEditing = true;
     currentEditId = task._id;
     
-    document.getElementById('title').value = task.title;
-    document.getElementById('description').value = task.description;
+    const titleEle = document.getElementById('title');
+    const descEle = document.getElementById('description');
     
-    document.getElementById('submit-btn').textContent = 'Update Task';
+    titleEle.value = task.title;
+    descEle.value = task.description;
+    
+    document.querySelector('#submit-btn span').innerText = 'Update Task';
     document.getElementById('cancel-edit-btn').classList.remove('hidden');
     
-    document.querySelector('.task-form-section').scrollIntoView({ behavior: 'smooth' });
-    document.getElementById('title').focus();
+    document.querySelector('.container').scrollTo({ top: 0, behavior: 'smooth' });
+    titleEle.focus();
 }
 
 function cancelEdit() {
@@ -165,14 +199,53 @@ function cancelEdit() {
     document.getElementById('title').value = '';
     document.getElementById('description').value = '';
     
-    document.getElementById('submit-btn').textContent = 'Create Task';
+    document.querySelector('#submit-btn span').innerText = 'Create Task';
     document.getElementById('cancel-edit-btn').classList.add('hidden');
 }
 
-function showToast(message, type = 'success') {
+async function deleteTask(id) {
+    try {
+        const response = await fetch(`${API_URL}/deleteTodo/${id}`, { method: 'DELETE' });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            showToast('Task eradicated', 'success', 'ph-trash');
+            fetchTasks();
+        } else {
+            showToast(result.message || 'Error deleting task', 'error', 'ph-warning-circle');
+        }
+    } catch (error) {
+        console.error('Error deleting task:', error);
+        showToast('Network error, could not delete task', 'error', 'ph-wifi-slash');
+    }
+}
+
+async function toggleComplete(id, completed) {
+    try {
+        const response = await fetch(`${API_URL}/updateTodo/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed })
+        });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            fetchTasks();
+        } else {
+            showToast(result.message || 'Error updating status', 'error', 'ph-warning-circle');
+        }
+    } catch (error) {
+        console.error('Error toggling status:', error);
+        showToast('Network error', 'error', 'ph-wifi-slash');
+    }
+}
+
+function showToast(message, type = 'success', iconName = 'ph-check-circle') {
     const toast = document.getElementById('toast');
-    toast.textContent = message;
+    const icon = document.getElementById('toast-icon');
+    const msg = document.getElementById('toast-message');
+    
+    msg.innerText = message;
     toast.className = `toast show ${type}`;
+    icon.className = `ph-fill ${iconName} toast-icon`;
     
     setTimeout(() => {
         toast.classList.remove('show');
@@ -189,41 +262,4 @@ function escapeHTML(str) {
             '"': '&quot;'
         }[tag] || tag)
     );
-}
-
-async function deleteTask(id) {
-    try {
-        const response = await fetch(`${API_URL}/deleteTodo/${id}`, {
-            method: 'DELETE'
-        });
-        const result = await response.json();
-        if (response.ok && result.success) {
-            showToast('Task deleted successfully', 'success');
-            fetchTasks();
-        } else {
-            showToast(result.message || 'Error deleting task', 'error');
-        }
-    } catch (error) {
-        console.error('Error deleting task:', error);
-        showToast('Network error, could not delete task', 'error');
-    }
-}
-
-async function toggleComplete(id, completed) {
-    try {
-        const response = await fetch(`${API_URL}/updateTodo/${id}`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ completed })
-        });
-        const result = await response.json();
-        if (response.ok && result.success) {
-            fetchTasks();
-        } else {
-            showToast(result.message || 'Error updating status', 'error');
-        }
-    } catch (error) {
-        console.error('Error toggling status:', error);
-        showToast('Network error', 'error');
-    }
 }
