@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Task Manager Pro</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>Task Manager Pro</h1>
+            <p>Organize your work, effortlessly.</p>
+        </header>
+
+        <main>
+            <section class="task-form-section">
+                <h2>Add New Task</h2>
+                <form id="task-form">
+                    <div class="input-group">
+                        <label for="title">Title <span class="char-count">(Max 50)</span></label>
+                        <input type="text" id="title" placeholder="What needs to be done?" required maxlength="50">
+                    </div>
+                    <div class="input-group">
+                        <label for="description">Description <span class="char-count">(Max 50)</span></label>
+                        <textarea id="description" placeholder="Add more details..." required maxlength="50"></textarea>
+                    </div>
+                    <button type="submit" class="btn-primary" id="submit-btn">Create Task</button>
+                    <button type="button" class="btn-secondary hidden" id="cancel-edit-btn">Cancel</button>
+                </form>
+            </section>
+
+            <section class="tasks-list-section">
+                <h2>Your Tasks</h2>
+                <div id="loading" class="hidden">Loading tasks...</div>
+                <div id="error-message" class="error hidden"></div>
+                <div id="tasks-container" class="tasks-grid">
+                    <!-- Tasks will be injected here via JS -->
+                </div>
+            </section>
+        </main>
+    </div>
+    
+    <!-- Toast Notification -->
+    <div id="toast" class="toast hidden"></div>
+
+    <script src="script.js"></script>
+</body>
+</html>
