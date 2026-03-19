@@ -48,8 +48,11 @@ function renderTasks(tasks) {
         const card = document.createElement('div');
         card.className = 'task-card';
         card.innerHTML = `
-            <div>
-                <h3 class="task-title">${escapeHTML(task.title)}</h3>
+            <div class="${task.completed ? 'task-completed' : ''}">
+                <div class="task-header-row">
+                    <h3 class="task-title">${escapeHTML(task.title)}</h3>
+                    <input type="checkbox" class="complete-checkbox" data-id="${task._id}" ${task.completed ? 'checked' : ''}>
+                </div>
                 <p class="task-desc">${escapeHTML(task.description)}</p>
                 <div class="task-meta">
                     <span>${date}</span>
@@ -57,6 +60,7 @@ function renderTasks(tasks) {
             </div>
             <div class="task-actions">
                 <button class="action-btn edit-btn" data-id="${task._id}">Edit</button>
+                <button class="action-btn delete-btn" data-id="${task._id}">Delete</button>
             </div>
         `;
         
@@ -68,6 +72,23 @@ function renderTasks(tasks) {
             const id = e.target.getAttribute('data-id');
             const task = tasks.find(t => t._id === id);
             startEdit(task);
+        });
+    });
+
+    document.querySelectorAll('.delete-btn').forEach(btn => {
+        btn.addEventListener('click', (e) => {
+            const id = e.target.getAttribute('data-id');
+            if(confirm('Are you sure you want to delete this task?')) {
+                deleteTask(id);
+            }
+        });
+    });
+
+    document.querySelectorAll('.complete-checkbox').forEach(chk => {
+        chk.addEventListener('change', (e) => {
+            const id = e.target.getAttribute('data-id');
+            const isChecked = e.target.checked;
+            toggleComplete(id, isChecked);
         });
     });
 }
@@ -168,4 +189,41 @@ function escapeHTML(str) {
             '"': '&quot;'
         }[tag] || tag)
     );
+}
+
+async function deleteTask(id) {
+    try {
+        const response = await fetch(`${API_URL}/deleteTodo/${id}`, {
+            method: 'DELETE'
+        });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            showToast('Task deleted successfully', 'success');
+            fetchTasks();
+        } else {
+            showToast(result.message || 'Error deleting task', 'error');
+        }
+    } catch (error) {
+        console.error('Error deleting task:', error);
+        showToast('Network error, could not delete task', 'error');
+    }
+}
+
+async function toggleComplete(id, completed) {
+    try {
+        const response = await fetch(`${API_URL}/updateTodo/${id}`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ completed })
+        });
+        const result = await response.json();
+        if (response.ok && result.success) {
+            fetchTasks();
+        } else {
+            showToast(result.message || 'Error updating status', 'error');
+        }
+    } catch (error) {
+        console.error('Error toggling status:', error);
+        showToast('Network error', 'error');
+    }
 }

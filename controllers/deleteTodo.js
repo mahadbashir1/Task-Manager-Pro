@@ -1,28 +1,29 @@
 const Todo = require("../models/Todo");
 const mongoose = require('mongoose');
 
-exports.updateTodo = async(req,res) => {
+exports.deleteTodo = async(req,res) => {
     try{
         if (!mongoose.isValidObjectId(req.params.id)) {
-            return res.status(404).json
-            (
+            return res.status(404).json(
                 {
                     success: false,
                     message: "Invalid ID"
                 }
             );
         }
-        const updateData = { updatedAt: Date.now() };
-        if (req.body.title !== undefined) updateData.title = req.body.title;
-        if (req.body.description !== undefined) updateData.description = req.body.description;
-        if (req.body.completed !== undefined) updateData.completed = req.body.completed;
-        
-        const todo = await Todo.findByIdAndUpdate({_id: req.params.id}, updateData, {new: true, runValidators: true});
+        const todo = await Todo.findByIdAndDelete(req.params.id);
+        if (!todo) {
+            return res.status(404).json(
+                {
+                    success: false,
+                    message: "Todo not found"
+                }
+            );
+        }
         res.status(200).json(
             {
                 success:true,
-                data:todo,
-                message:"Data updated successfully"
+                message:"Todo deleted successfully"
             }
         );
     }
